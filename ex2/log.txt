@@ -1,0 +1,113 @@
+
+1)
+full value iteration, optimal_policy extraction (board1 succ, board2 -stuch due to memory issues)
+=============================================================================================================
+2)NO MEMO
+partial horizon(10) + len(queue) < 3000. VI,OPE : board1 Finished in 32 Steps.
+	Reward result-> 133
+		Finished in 200 Steps.
+	Reward result-> -393
+	//default seed
+	seed_array = [42,13,131,146,142,652,34,5,2,57,4,345,1,2,7,77,777,565,4,344,3424,636,666,8,6,89,9,76,24,36]
+    board1:
+    avg: 68.5 max: 161 rewards: [133, 127, -200, 99, 83, 127, 123, 133, 151, -200, 107, 139, 97, 151, -200, 153, -200, 81, 107, 131, 151, -200, 139, 151, 161, 83, 61, 87, 137, 143]
+    board2:
+    max was -372 with seed_array most common is still -393
+==================================================
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s')-h(s'))
+ with heuristic (substracted in policy extraction:
+    avg: 57.2max161 rewards:    [133, 127, -200, 99, 83, 127, -200, 133, 151, 117, 107, 139, -200, 151, 17, 153, -200, 107, 107, 131, 151, -200, 139, 151, 161, -200, 89, 87, 137, 121]
+ ==================================================
+ vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s'))
+horizon 6 with heuristic (substracted in VI:
+avg: 59.0 max161 rewards: [-200, 127, -200, 99, 125, 127, 123, 133, 151, -200, 107, 139, 97, 151, -200, 153, -200, 81, 107, 131, 151, -200, 139, 151, 161, 83, 89, 87, 137, 121]
+
+worse results horizon 4,5,8,7 w/o and heuristic (substracted in VI:
+
+
+==================================
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s'))
+data_s_tag['DEPTH'] > horizon
+faster results
+horizon 10
+memo horizon//2+1
+heuristic (substracted in VI
+
+======================================
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s'))
+data_s_tag['DEPTH'] > horizon
+horizon 10
+memo horizon//2-1
+heuristic (substracted in VI
+avg: 36.53333333333333 max161 rewards: [133, 127, 137, -200, 27, 127, 123, 133, 125, 117, 129, 139, -200, 125, 43, 153, -200, -200, 129, 131, 151, -200, 139, -200, 161, -200, 89, -200, 137, 121]
+=============================================
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s'))
+horizon 10
+memo horizon//2-1
+heuristic (substracted in VI
+
+ 20.866666666666667 max161 rewards: [133, 127, 137, -200, -203, 83, 123, 133, 109, 117, 47, 139, -200, 109, 43, 153, -200, -200, 47, 131, 151, -200, 139, -200, 161, -200, 89, -200, 137, 121]
+avg: -386.03333333333336 max-377 rewards: [-388, -388, -388, -388, -388, -388, -388, -388, -388, -377, -388, -388, -388, -388, -388, -377, -388, -388, -388, -384, -377, -388, -388, -388, -377, -388, -388, -377, -388, -388]
+
+====================
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s'))
+data_s_tag['DEPTH'] > horizon
+horizon 10
+memo horizon//3-1
+heuristic (substracted in VI
+avg: 43.3 max161 rewards: [133, 127, 127, -200, 83, 127, 123, 133, 151, 117, 47, 139, -200, 151, 97, 153, -200, -200, 47, 131, 151, -200, 139, 15, 161, -200, 89, -200, 137, 121]
+board2 (very slow)
+max -377 majority -388 (keep stuckin the key10 in the wall for some reason)
+
+===========================
+added reward_augmentation: penalties*penalties_factor + opened_doors_factor*opened_doors+plates_factor*pressed_pplates+near_goal_factor*goal
+all factors are = 1
+horizon:10
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s')+reward_aug(s,s')/gamma)
+penalties mean returning to the same place we've been before + hitting walls
+board1:
+avg: 43.3 max161 rewards: [133, 127, 127, -200, 83, 127, 123, 133, 151, 117, 47, 139, -200, 151, 97, 153, -200, -200, 47, 131, 151, -200, 139, 15, 161, -200, 89, -200, 137, 121]
+
+=====================================
+added reward_augmentation: penalties*penalties_factor + opened_doors_factor*opened_doors+plates_factor*pressed_pplates+near_goal_factor*goal
+        penalties_factor = -1000
+        plates_factor = 1.5
+        opened_doors_factor = 10
+        near_goal_factor = 15
+horizon:10
+penalties mean returning to the same place we've been before + hitting walls
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s')+reward_aug(s,s')/gamma)
+board1:
+avg: -5.9 max139 rewards: [133, 99, 115, -200, -203, 69, 37, 73, 71, 75, 47, 55, -200, 71, 89, 53, -200, -200, 47, 59, 139, -200, 131, -203, 75, -200, 5, -200, 139, 47]
+==================================================
+added reward_augmentation: penalties*penalties_factor + opened_doors_factor*opened_doors+plates_factor*pressed_pplates+near_goal_factor*goal
+all factors are = 1
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s')+reward_aug(s,s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s'))
+penalties mean returning to the same place we've been before + hitting walls
+horizon:10
+board1
+avg: 39.13333333333333 max161 rewards: [133, 127, -200, -200, 83, 127, 123, 133, 151, 117, 107, 139, -200, 151, 43, 153, -200, -200, 107, 131, 151, -200, 139, 151, 161, -200, 89, -200, 137, 121]
+====================================================================================================================
+added reward_augmentation: penalties*penalties_factor + opened_doors_factor*opened_doors+plates_factor*pressed_pplates+near_goal_factor*goal
+all factors are = 1
+no memoization
+vi: V*(s)=R(s) + gamma * max_a(Pr(s'|s,a)(V*(s')-h(s')+reward_aug(s,s'))
+pe:pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s'))
+penalties mean returning to the same place we've been before + hitting walls
+horizon:6
+board1
+avg: -43.766666666666666 max161 rewards: [133, 119, -200, -200, -200, -200, -200, 113, 119, -200, 91, 139, -203, 119, -200, -200, -200, -200, 91, 31, 43, -200, -200, 73, 161, 81, 61, -200, -3, 119]
+==============================================================================================================
+avg: 39.13333333333333 max161 rewards: [133, 127, -200, -200, 83, 127, 123, 133, 151, 117, 107, 139, -200, 151, 43, 153, -200, -200, 107, 131, 151, -200, 139, 151, 161, -200, 89, -200, 137, 121]
+10/6 0:50
+-377 max most common -393
+===============================
