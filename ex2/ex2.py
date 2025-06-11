@@ -20,7 +20,41 @@ PRESSED_PLATES = set(range(30, 40))
 KEY_BLOCKS = set(range(10, 20))
 #
 
+class Node:
+    """This class represents a node in the pressure plate game."""
 
+    def __init__(self, state, parent=None,depth=0,g=0.0,h=0.0,f=0.0,action=None):
+        """Initialize node with given state and parent.
+        """
+        self.state = state
+        self.parent = parent
+        if parent is not None:
+            self.depth = parent.depth + 1
+        else:
+            self.depth = depth
+        self.value = 0.0
+        self.g = 0.0
+        self.h = 0.0 
+        self.f = 0.0   
+        self.depth = 0
+        self.action = None
+    
+    def __hash__(self):
+        return hash(self.state)
+    def __eq__(self, other):   
+        if isinstance(other, Node):
+            return self.state == other.state
+        return False
+    def __repr__(self):
+        return f"Node(state={self.state}, parent={self.parent}, value={self.value}, depth={self.depth}, action={self.action})"  
+
+    def set_parent(self, parent,action):
+        """Set parent of the node."""
+       
+        if parent is not None and isinstance(parent, Node) and self.parent.depth < parent.depth:
+            self.parent = parent
+            self.depth = parent.depth + 1
+            self.action = action
 
 class Controller:
     """This class is a controller for a pressure plate game."""
@@ -66,12 +100,50 @@ class Controller:
         self.previous_state = None
         self.remaining_steps = self.MAX_STEPS
         self.tree = None
+        init_state = ()
+        path = self.A_star((self.init_agent_pos,tuple(self.find_keys_pos(state[0])),self.ndarray2tuple(state[0])))
 
         self.graph = {}
         self.policies = {}
 
 
+    def A_star(self, init_state):
+        """A* algorithm to find the shortest path from start to goal."""
+        open_set = {Node(init_state, None,depth=0,g =0.0,h=self.h(init_state))}
+        came_from = {}
+        g_score = {init_state: 0}
+        f_score = {init_state: self.h(init_state)}
 
+        while open_set:
+            current = min(open_set, key=lambda x: f_score.get(x, float('inf')))
+            if self.goal_test(current.state):
+                return self.reconstruct_path(came_from, current)
+
+            open_set.remove(current)
+            succ, finish = self.successor(current.state)
+            for action, next_state in succ:
+                neighbor = next_state
+                if not self.in_bound(neighbor[0]):
+                    continue
+
+                tentative_g_score = g_score[current.state] 
+                if tentative_g_score < g_score.get(neighbor, float('inf')):
+                    came_from[neighbor] = current.state
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = tentative_g_score + self.h(neighbor)
+                    open_set.add(Node(neighbor, current, depth=current.depth + 1, g=tentative_g_score, h=self.h(neighbor),action=action))
+
+
+        return None  # No path found
+
+
+    def reconstruct_path(self, came_from, current):
+        """Reconstruct the path from start to goal."""
+        total_path = [current.state]
+        while current.state in came_from:
+            current = Node(came_from[current.state], None)
+            total_path.append(current.state)
+        return total_path[::-1]
 
     def goal_test(self, state):
         board = state[2]
