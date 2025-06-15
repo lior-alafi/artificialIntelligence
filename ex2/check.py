@@ -1,6 +1,5 @@
 import numpy as np
 
-import ex2
 import pressure_plate
 import ex2
 from problems import stuff

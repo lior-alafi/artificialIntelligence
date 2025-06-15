@@ -68,7 +68,7 @@ class Controller:
 
         self.gamma = 0.8
         self.epsilon = 0.01
-        self.horizon = 10
+        self.horizon = 6
         self.max_queue = 9000
         if hyper_parameters is not None:
             self.gamma = hyper_parameters['gamma']
@@ -79,28 +79,32 @@ class Controller:
         self.remaining_steps = self.MAX_STEPS
         self.tree = None
         self.initial = (self.init_agent_pos,tuple(self.find_keys_pos(state[0])),self.ndarray2tuple(state[0]))
-        self.astar = AStar(self,self.h)
-        astar_sol = self.astar.search(self,self.h,self.initial)
+
+        self.count_stray_path = 0
         self.trajectory_dict = OrderedDict()
-        if astar_sol:
-            solve = astar_sol[0].path()[::-1]
-            for i,pi in enumerate(solve):
-                if i == len(solve) - 1:
-                    break
-                p_curr = solve[i+1].state[0]
-                p_next = solve[i].state[0]
-                d = (p_curr[0]-p_next[0],p_curr[1]-p_next[1])
-                for a,dir in self.actions.items():
-                    if dir == d:
-                            pi.action = a
-                            break
-                self.trajectory_dict[pi.state] = {"action":pi.action,"CURRENT_VALUE":(i+1)*10,'agent':pi.state[0]}
-                print(self.trajectory_dict[pi.state])
-        # trajectory = self.A_star((self.,tuple(self.find_keys_pos(state[0])),self.ndarray2tuple(state[0])))
-        # print(trajectory)
+        self.astar = AStar(self,self.h)
+        self.a_star(self.initial)
+
         self.graph = {}
         self.policies = {}
 
+
+    def a_star(self,state):
+        astar_sol = self.astar.search(self, self.h,state)
+        self.trajectory_dict = OrderedDict()
+        if astar_sol:
+            solve = astar_sol[0].path()[::-1]
+            for i, pi in enumerate(solve):
+                if i == len(solve) - 1:
+                    break
+                p_curr = solve[i + 1].state[0]
+                p_next = solve[i].state[0]
+                d = (p_curr[0] - p_next[0], p_curr[1] - p_next[1])
+                for a, dir in self.actions.items():
+                    if dir == d:
+                        pi.action = a
+                        break
+                self.trajectory_dict[pi.state] = {"action": pi.action, "CURRENT_VALUE":  10, 'agent': pi.state[0]}
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
         state1 via action, assuming cost c to get up to state1. If the problem
@@ -359,7 +363,7 @@ class Controller:
                 agent_new_pos, new_key_pos, new_board = n_state[1]
                 traj_data = self.trajectory_dict.get(n_state[1])
                 data_s_tag = {
-                    "CURRENT_VALUE": self.reward_state(agent_new_pos, new_board, True) + (traj_data['CURRENT_VALUE'] if traj_data is not None else 0.0),
+                    "CURRENT_VALUE": self.reward_state(agent_new_pos, new_board, True),# + (traj_data['CURRENT_VALUE'] if traj_data is not None else 0.0),
                     "next_value": 0.0,
                     "current_action:": "U"
                 }
@@ -581,15 +585,25 @@ class Controller:
 
         traj_data = self.trajectory_dict.get(current_state)
         if traj_data:
+            self.count_stray_path = 0
             return traj_data['action']
+
+        if self.count_stray_path == self.horizon -1:
+            self.a_star(current_state)
+            traj_data = self.trajectory_dict.get(current_state)
+            if traj_data:
+                self.count_stray_path = 0
+                return traj_data['action']
+
         s = self.graph.get(hash(current_state))
         if s is None:# or s['DEPTH'] == (self.horizon+ self.MAX_STEPS-self.remaining_steps)//2-1:
             # for h in list(self.graph.keys()):
             #     if self.graph[h]['DEPTH'] < (self.horizon+ self.MAX_STEPS-self.remaining_steps)//2-2:
             #         del self.graph[h]
+            self.graph = {}
             self.graph = self.value_iteration(current_state,self.horizon)
             self.policies = self.optimal_policy(self.MAX_STEPS,self.graph )
-
+        self.count_stray_path += 1
         data = self.policies.get(hash(current_state))
 
 
