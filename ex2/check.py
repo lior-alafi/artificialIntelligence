@@ -3,10 +3,11 @@ import numpy as np
 import ex2
 import pressure_plate
 import ex2
+from problems import stuff
 
 
-def solve(game: pressure_plate.Game):
-    policy = ex2.Controller(game)
+def solve(game: pressure_plate.Game,hyper_params=None):
+    policy = ex2.Controller(game,hyper_parameters=hyper_params)
     for i in range(game.get_max_steps()):
         game.submit_next_action(chosen_action=policy.choose_next_action(game.get_current_state()))
         if game.get_current_state()[3]:
@@ -27,7 +28,7 @@ example = {'chosen_action_prob': {'U': [0.9, 0.05, 0.05, 0], 'L': [0.1, 0.8, 0.0
            'seed': 42}
 
 example2 = {'chosen_action_prob': {'U': [0.6, 0.05, 0.05, 0.3], 'L': [0, 0.9, 0.075, 0.025],
-                                   'R': [0.25, 0.2, 0.3, 0.25], 'D': [0.05, 0.13, 0.15, 0.67]},
+                                   'R': [0.15, 0.02, 0.7, 0.13], 'D': [0.05, 0.13, 0.15, 0.67]},
             'finished_reward': 200,
             'opening_door_reward': {10: -3, 11: 2, 12: 15, 13: -6, 14: 3, 15: -10, 16: 17, 17: 0, 18: 1, 19: -2},
             'step_punishment': -2,
@@ -60,23 +61,39 @@ problem2 = (
     (99,99,99,99,99,99,99,99,99,99,99,99,99,99,99),)
 
 seed_array = [42,13,131,146,142,652,34,5,2,57,4,345,1,2,7,77,777,565,4,344,3424,636,666,8,6,89,9,76,24,36]
-def main():
-    debug_mode = True
-    rewards = []
-    for seed in seed_array:
-        example2['seed'] = seed
-        game = pressure_plate.create_pressure_plate_game((100, problem1, example2, debug_mode))
-        r = solve(game)
-        rewards.append(r)
-    print(f'avg: {np.mean(rewards)} max{np.max(rewards)} rewards: {rewards}')
+gamma = np.arange(start=0.05,stop=1.05,step=0.05)
+horizon = [x for x in range(1,20)]
+queue = [x for x in range(100,10000,1000)]
 
-    # rewards = []
-    # for seed in seed_array:
-    #     example['seed']= seed
-    #     game2 = pressure_plate.create_pressure_plate_game((200, problem2, example, debug_mode))
-    #     r= solve(game2)
-    #     rewards.append(r)
-    # print(f'avg: {np.mean(rewards)} max{np.max(rewards)} rewards: {rewards}')
+
+def main():
+    import datetime
+    debug_mode = True
+
+
+
+    rewards = []
+    start = datetime.datetime.now()
+    params = {'gamma':np.random.choice(gamma),'horizon':np.random.choice(horizon),'max_queue':np.random.choice(queue)}
+    for seed in seed_array:
+                # print(params)
+                example2['seed'] = seed
+                start = datetime.datetime.now()
+                game = pressure_plate.create_pressure_plate_game((100, problem1, example2, debug_mode))
+                r = solve(game)
+                rewards.append(r)
+    print(f'{datetime.datetime.now()-start} avg: {np.mean(rewards)} max: {np.max(rewards)} rewards: {rewards}')
+    start = datetime.datetime.now()
+    rewards = []
+
+    for seed in seed_array:
+            # print(params)
+            example['seed']= seed
+            game2 = pressure_plate.create_pressure_plate_game((200, problem2, example, debug_mode))
+            r= solve(game2)
+            rewards.append(r)
+    print(f'{datetime.datetime.now()-start} avg: {np.mean(rewards)} max: {np.max(rewards)} rewards: {rewards}')
+    print("#"*10)
 
 if __name__ == "__main__":
     main()

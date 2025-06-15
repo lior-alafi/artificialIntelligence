@@ -20,8 +20,8 @@ class MyTestCase(unittest.TestCase):
 
         game = pressure_plate.create_pressure_plate_game((100, right_corner, example, True))
         ctrler = Controller(game)
-        succ,fin = ctrler.successor(((1,1),(),right_corner))
-        self.assertEqual(len(succ), 2)  # add assertion here
+        succ = ctrler.successor(((1,1),(),right_corner))
+        self.assertEqual(len(succ), 4)  # add assertion here
         graph = ctrler.value_iteration(((1,1),(),right_corner),3)
         print(graph)
 

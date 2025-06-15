@@ -264,39 +264,81 @@ class PressurePlateProblem:
                 return True
         return  False
 
+
     def h(self, node):
         agent_pos = node.state[0]
         if node.state[2][agent_pos[0]][agent_pos[1]] == AGENT_ON_GOAL:
             return 0
-        keys2plate_distances = []
-        sums = 0
+
+        mh_key_2_plate_sum = 0
         door_2_goal_sum = 0
 
         min_agent_to_goal_distance = min(self.manhattan_distance(goal,agent_pos) for goal in self.goals)
+
+
         unnecessary_keys_movements = 0
+        agent_2_key_pos = 0
         for key_grp in node.state[1]:
             key_tile = key_grp[0]
-            #since all doors unlocked together
+
             if KEY_VALID in self.valid_keys[key_tile] and  self.valid_keys[key_tile][KEY_VALID]:
+                # since all doors unlocked together we can just take the first one
                 door_pos = self.valid_keys[key_tile][KEY_DOORS_POS][0]
-                if node.state[2][door_pos[0]][door_pos[1]] not in [BLANK,FLOOR]:
+                if node.state[2][door_pos[0]][door_pos[1]] not in [BLANK,FLOOR,AGENT]:
 
                     key_positions = np.array(key_grp[1])
                     remaining_plate_pos = np.array([x for x in self.valid_keys[key_tile][KEY_PLATES_POS] if node.state[2][x[0]][x[1]] == key_tile + 10])
                     if len(remaining_plate_pos) > 0:
+                        agent_2_key_pos += np.sum((np.abs(key_positions-agent_pos)))
                         distances = np.sum(np.abs(key_positions-remaining_plate_pos),axis=1)
-                        keys2plate_distances.append(distances)
-                        # sums += min(distances)
-                        sums += sum(distances)
+                        mh_key_2_plate_sum += sum(distances)
 
                 for door_pos in self.valid_keys[key_tile][KEY_DOORS_POS]:
                     if  node.state[2][door_pos[0]][door_pos[1]] not in [BLANK, FLOOR]:
                         goal_door_distance = np.average([self.manhattan_distance(door_pos,goal) for goal in self.goals])
+                        # since likelyhood of needing to pass through such door is high
                         if goal_door_distance < 3:
                             door_2_goal_sum += 1
             else:
                 unnecessary_keys_movements +=1
-        return 2*min_agent_to_goal_distance + 4*sums + 4*door_2_goal_sum + unnecessary_keys_movements*5
+
+        # return max(mh_key_2_plate_sum + agent_2_key_pos + door_2_goal_sum,min_agent_to_goal_distance )
+        return self.agent_2_goal_penalty *min_agent_to_goal_distance +  self.keys_2_plates_penalty *mh_key_2_plate_sum \
+              + self.goal_2_doors_penalty*door_2_goal_sum + self.invalid_keys_penalty * unnecessary_keys_movements*5
+
+    # def h(self, node):
+    #     agent_pos = node.state[0]
+    #     if node.state[2][agent_pos[0]][agent_pos[1]] == AGENT_ON_GOAL:
+    #         return 0
+    #     keys2plate_distances = []
+    #     sums = 0
+    #     door_2_goal_sum = 0
+    #
+    #     min_agent_to_goal_distance = min(self.manhattan_distance(goal,agent_pos) for goal in self.goals)
+    #     unnecessary_keys_movements = 0
+    #     for key_grp in node.state[1]:
+    #         key_tile = key_grp[0]
+    #         #since all doors unlocked together
+    #         if KEY_VALID in self.valid_keys[key_tile] and  self.valid_keys[key_tile][KEY_VALID]:
+    #             door_pos = self.valid_keys[key_tile][KEY_DOORS_POS][0]
+    #             if node.state[2][door_pos[0]][door_pos[1]] not in [BLANK,FLOOR]:
+    #
+    #                 key_positions = np.array(key_grp[1])
+    #                 remaining_plate_pos = np.array([x for x in self.valid_keys[key_tile][KEY_PLATES_POS] if node.state[2][x[0]][x[1]] == key_tile + 10])
+    #                 if len(remaining_plate_pos) > 0:
+    #                     distances = np.sum(np.abs(key_positions-remaining_plate_pos),axis=1)
+    #                     keys2plate_distances.append(distances)
+    #                     # sums += min(distances)
+    #                     sums += sum(distances)
+    #
+    #             for door_pos in self.valid_keys[key_tile][KEY_DOORS_POS]:
+    #                 if  node.state[2][door_pos[0]][door_pos[1]] not in [BLANK, FLOOR]:
+    #                     goal_door_distance = np.average([self.manhattan_distance(door_pos,goal) for goal in self.goals])
+    #                     if goal_door_distance < 3:
+    #                         door_2_goal_sum += 1
+    #         else:
+    #             unnecessary_keys_movements +=1
+    #     return 2*min_agent_to_goal_distance + 4*sums + 4*door_2_goal_sum + unnecessary_keys_movements*5
 
 
     def manhattan_distance(self,lhs,rhs):
