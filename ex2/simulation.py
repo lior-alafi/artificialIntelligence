@@ -1,7 +1,7 @@
 import pygame
 import time
 import numpy as np
-from sim_data import tests,stuff,problems
+from sim_data import stuff#tests,stuff,problems
 import hashlib
 # צבעים
 WHITE = (255, 255, 255)
@@ -423,7 +423,9 @@ def run_simulation(board,actions):
 
 
 # Run the simulation
-for x in  problems:
+for x in stuff:#problems:
     print(x['name'])
-    run_simulation(x['board'],x['astar_actions'])
-    run_simulation(x['board'],x['bfs_actions'])
+    for s in x['seed']:
+        print(s)
+        run_simulation(x['board'],x['seed'][s]['chosen'])
+        run_simulation(x['board'],x['seed'][s]['action'])

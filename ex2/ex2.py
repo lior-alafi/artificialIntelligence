@@ -1,3 +1,4 @@
+import datetime
 from collections import OrderedDict
 
 import pressure_plate
@@ -146,8 +147,9 @@ class Node:
 
 
 class AStar:
-    def __init__(self,problem,f):
+    def __init__(self,problem,f,max_traj_time=None):
         self.fringe = PriorityQueue(min, f)
+        self.max_trajectory_calc = max_traj_time #in seconds
 
     def graph_search(self,problem, fringe,initial = None):
         """Search through the successors of a problem to find a goal.
@@ -159,10 +161,13 @@ class AStar:
             fringe.append((Node(initial)))
         else:
             fringe.append(Node(problem.initial))
-        while fringe:
+        start = datetime.datetime.now()
+        while fringe :
             node = fringe.pop()
             if problem.goal_test(node.state):
                 return node, expanded
+            if self.max_trajectory_calc is not None and self.max_trajectory_calc <= (datetime.datetime.now() - start).seconds:
+                break
             if node.state not in closed:
                 closed[node.state] = True
                 fringe.extend(node.expand(problem))
@@ -261,7 +266,7 @@ class Controller:
 
         self.gamma = 0.8
         self.epsilon = 0.01
-        self.horizon = 3
+        self.horizon = 2
         self.max_queue = 9000
         if hyper_parameters is not None:
             self.gamma = hyper_parameters['gamma']
@@ -273,9 +278,11 @@ class Controller:
         self.tree = None
         self.initial = (self.init_agent_pos,tuple(self.find_keys_pos(state[0])),self.ndarray2tuple(state[0]))
 
+        self.ignore_trajectory = False # incase trajectory is none
+        self.max_traj_calc_time =30#25
         self.count_stray_path = 0
         self.trajectory_dict = OrderedDict()
-        self.astar = AStar(self,self.h)
+        self.astar = AStar(self,self.h,self.max_traj_calc_time)
         self.a_star(self.initial)
 
         self.graph = {}
@@ -283,6 +290,7 @@ class Controller:
 
 
     def a_star(self,state,debug=False):
+        start = datetime.datetime.now()
         astar_sol = self.astar.search(self, self.h,state)
         self.trajectory_dict = OrderedDict()
         if astar_sol:
@@ -300,6 +308,9 @@ class Controller:
                 self.trajectory_dict[pi.state] = {"action": pi.action, "CURRENT_VALUE":  10, 'agent': pi.state[0]}
                 if debug:
                     print(self.trajectory_dict[pi.state])
+        else:
+            self.ignore_trajectory = True
+        print(f'A* time = {datetime.datetime.now()-start}')
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
         state1 via action, assuming cost c to get up to state1. If the problem
@@ -412,14 +423,11 @@ class Controller:
         board = current_state[2]
         next_pos = next_state[0]
         next_board = next_state[2]
-        penalties_factor = 0
-        plates_factor = 10
-        opened_doors_factor = 30
-        near_goal_factor = 200
+        plates_factor = 20
+        opened_doors_factor = 20
 
         opened_doors = 0
         pressed_pplates = 0
-        goal = 0
 
         for key_id,data in self.valid_keys.items():
             for pos in  data['KEY_PLATES_POS']:
@@ -429,22 +437,11 @@ class Controller:
                 if board[pos[0]][pos[1]] != next_board[pos[0]][pos[1]]:
                     opened_doors += 1
 
-        penalties = 0
-        if next_pos[0]== pos[0] and next_pos[1]== pos[1]:
-            penalties += 1
-
-        if board[next_pos[0]][next_pos[1]] in {WALL} | PRESSED_PLATES | PRESSURE_PLATES | LOCKED_DOORS:
-            penalties += 5
-
-        if board[next_pos[0]][next_pos[1]] == GOAL:
-            goal = 1
-        return penalties*penalties_factor + opened_doors_factor*opened_doors+plates_factor*pressed_pplates+near_goal_factor*goal
+        return opened_doors_factor*opened_doors+plates_factor*pressed_pplates
 
     def reward_state(self,agent_pos,board,is_s_tag=False):
         if agent_pos in self.goals:
             return self.R['goal']
-
-
 
         if agent_pos in self.doors and board[agent_pos[0]][agent_pos[1]] in [BLANK,FLOOR]:
             #door was opened
@@ -609,7 +606,7 @@ class Controller:
                     "STATE": state,
                     'DEPTH': 0,
                     'PARENT': None,
-                    'CURRENT_VALUE': 0.0 if traj_data is None else traj_data['CURRENT_VALUE'],
+                    'CURRENT_VALUE': 0 if traj_data is None else traj_data['CURRENT_VALUE'],
 
                 }
                 if hash(state) in graph:#self.graph:
@@ -639,7 +636,8 @@ class Controller:
                             "STATE": n_state[1],
                             'DEPTH': data_s['DEPTH'] + 1,
                             'PARENT': state,
-                            'CURRENT_VALUE':self.reward_state(agent_new_pos, new_board, True) if traj_data is None else traj_data['CURRENT_VALUE']
+                            'CURRENT_VALUE': self.reward_state(agent_new_pos, new_board, True) if traj_data is None else traj_data['CURRENT_VALUE']
+                            # 'CURRENT_VALUE':(self.reward_aug(state,n_state[1])+self.reward_state(agent_new_pos, new_board, True)) if traj_data is None else traj_data['CURRENT_VALUE']
                         }
                         if hash(n_state[1]) in graph:
                             data_s_tag = graph[hash(n_state[1])]
@@ -719,33 +717,6 @@ class Controller:
         return 2 *min_agent_to_goal_distance +  4 *mh_key_2_plate_sum \
               + 4*door_2_goal_sum +  5* unnecessary_keys_movements
 
-
-    # def h(self,state):
-    #     agent_pos = state[0]
-    #     board = np.array(state[2])
-    #     keys = state[1]
-    #     board = np.array(board)
-    #
-    #     if board[agent_pos[0]][agent_pos[1]] == AGENT_ON_GOAL:
-    #         return 0
-    #
-    #     agent_2_goal = np.min([self.manhattan_distance(pos,agent_pos) for pos in self.goals])
-    #     agent_2_keys = 0
-    #     keys_2_plates = 0
-    #     for key_data in keys:
-    #         key_type = int(key_data[0])
-    #         key_poses = key_data[1]
-    #         plates = self.__find_item_pos_by_tile(board,key_type+10)
-    #         if len(key_poses) == len(plates):
-    #             for i in range(len(key_poses)):
-    #                 keys_2_plates += self.manhattan_distance(key_poses[i],plates[i])
-    #
-    #         agent_2_keys += np.sum([self.manhattan_distance(pos,agent_pos) for pos in key_poses])
-    #     # return (agent_2_keys+keys_2_plates+agent_2_goal)/self.board_shape[0]
-    #     return (agent_2_keys+keys_2_plates+agent_2_goal)/10
-    #     # return (5*agent_2_keys+4*keys_2_plates+6*agent_2_goal)/10
-    #     # return min(agent_2_keys+keys_2_plates,agent_2_goal)
-
     def keys_dict_2_tuples_keys(self,key_dict):
         return tuple((k, tuple(v)) for k, v in key_dict.items())
 
@@ -769,13 +740,8 @@ class Controller:
         """
         board = state[0]
         agent_pos = state[1]
-        steps = state[2]
-        done = state[3]
-        successful = state[4]
 
         current_state = (agent_pos, tuple(self.find_keys_pos(state[0])), self.ndarray2tuple(state[0]))
-        if self.previous_state is None:
-            self.previous_state = current_state
 
 
         traj_data = self.trajectory_dict.get(current_state)
@@ -783,28 +749,26 @@ class Controller:
             self.count_stray_path = 0
             return traj_data['action']
 
-        if self.count_stray_path == self.horizon -1:
+        if not self.ignore_trajectory and self.count_stray_path == self.horizon:
+            self.trajectory_dict = OrderedDict()
             self.a_star(current_state)
             traj_data = self.trajectory_dict.get(current_state)
             if traj_data:
                 self.count_stray_path = 0
                 return traj_data['action']
 
-        s = self.graph.get(hash(current_state))
-        if s is None:# or s['DEPTH'] == (self.horizon+ self.MAX_STEPS-self.remaining_steps)//2-1:
-            # for h in list(self.graph.keys()):
-            #     if self.graph[h]['DEPTH'] < (self.horizon+ self.MAX_STEPS-self.remaining_steps)//2-2:
-            #         del self.graph[h]
-            self.graph = {}
-            self.graph = self.value_iteration(current_state,self.horizon)
-            self.policies = self.optimal_policy(self.MAX_STEPS,self.graph )
+        # s = self.graph.get(hash(current_state))
+        # if s is None:# or s['DEPTH'] == (self.horizon+ self.MAX_STEPS-self.remaining_steps)//2-1:
+
+        self.graph = {}
+        self.graph = self.value_iteration(current_state,self.horizon)
+        self.policies = self.optimal_policy(self.MAX_STEPS,self.graph )
         self.count_stray_path += 1
         data = self.policies.get(hash(current_state))
 
 
 
         self.remaining_steps -= 1
-        self.previous_state = current_state
         if data is None:
             return 'U'
         return data['action']

@@ -181,3 +181,18 @@ with A* trajectory:(10 for each step)
 when going astray horizon-1 recalc trajectory
 0:00:00.032233 avg: 74.66666666666667 max: 165 rewards: [151, 137, 145, 145, 155, 157, 115, 153, 155, 119, 147, 155, -200, 155, 149, -200, 139, 153, 147, -200, 151, -200, 139, 165, 163, 105, 95, -200, -200, 145]
 0:02:01.664076 avg: 41.6 max: 229 rewards: [189, 192, 155, 107, 223, -393, -393, -393, 183, 203, 179, 173, 133, 183, 188, -393, -393, 229, 179, 142, 146, 191, 201, 205, -393, -393, 127, 113, 153, 205]
+================================================
+with A* trajectory:(10 for each step)
+        self.gamma = 0.8
+        self.epsilon = 0.01
+        self.horizon = 3
+        self.max_queue = 9000
+when going astray horizon-1 recalc trajectory, trajectory is limited by time (did experiments and decided 32s is "ok")
+if trajectory is none (e.g too much to calculate goal/unreachable goal - usually the same) just do
+value iteration and policy extraction
+
+value iteration v(s')_0 = (reward+aug_reward) or trajectory_value if exists
+#1 problem1 0:00:00.044542 avg: 42.1 max: 155 rewards: [149, 143, 127, -200, 155, 143, -200, 153, 155, 119, 147, 155, -200, 155, -200, 153, -200, -200, 147, 141]
+#2 problem1 0:00:04.023784 avg: 104.6 max: 323 rewards: [149, 143, 127, -200, 155, 143, -200, 153, 155, 119, 147, 155, -200, 155, -200, 153, -200, -200, 147, 141, -400, 295, 307, 307, 319, 301, -400, 311, 313, 305, 307, 299, 307, 313, -400, 323, -400, 317, 307, 311]
+
+
