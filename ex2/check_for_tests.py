@@ -60,7 +60,7 @@ problem2 = (
     (99,98,43,98,98,98,98,98,98,99,21,98,98,1 ,99),
     (99,99,99,99,99,99,99,99,99,99,99,99,99,99,99),)
 
-seed_array = [42,13,131,146]#,142,652,34,5,2,57,4,345,1,2,7,77,777,565,4,344,3424,636,666,8,6,89,9,76,24,36]
+seed_array = [42,13,131,146,142,652,34,5,2,57,4,345,1,2,7,77,777,565,4,344,3424,636,666,8,6,89,9,76,24,36]
 gamma = np.arange(start=0.05,stop=1.05,step=0.05)
 horizon = [x for x in range(1,20)]
 queue = [x for x in range(100,10000,1000)]
@@ -84,8 +84,21 @@ def main():
     #             rewards.append(r)
     # print(f'{datetime.datetime.now()-start} avg: {np.mean(rewards)} max: {np.max(rewards)} rewards: {rewards}')
 
-
     for prob in sim_data.problems+sim_data.tests:
+        rewards = []
+        print(prob['name'])
+        start = datetime.datetime.now()
+        for seed in seed_array:
+                # print(params)
+                print(prob['name'],seed)
+                example2['seed']= seed
+                game2 = pressure_plate.create_pressure_plate_game((100, prob['board'], example2, False))
+                r= solve(game2)
+                rewards.append(r)
+        print(f'#1 {prob['name']} {datetime.datetime.now()-start} avg: {np.mean(rewards)} max: {np.max(rewards)} rewards: {rewards}')
+        print("#"*10)
+
+    for prob in sim_data.problems+sim_data.tests+sim_data.stuff:
         rewards = []
         print(prob['name'])
         start = datetime.datetime.now()
@@ -96,7 +109,7 @@ def main():
                 game2 = pressure_plate.create_pressure_plate_game((200, prob['board'], example, False))
                 r= solve(game2)
                 rewards.append(r)
-        print(f'{prob['name']} {datetime.datetime.now()-start} avg: {np.mean(rewards)} max: {np.max(rewards)} rewards: {rewards}')
+        print(f'#2 {prob['name']} {datetime.datetime.now()-start} avg: {np.mean(rewards)} max: {np.max(rewards)} rewards: {rewards}')
         print("#"*10)
 
 if __name__ == "__main__":

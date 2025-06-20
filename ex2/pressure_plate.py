@@ -156,7 +156,7 @@ def create_pressure_plate_game(game):
         pprint(game[2])
     return Game(*game)
 
-
+# ["U", "L", "R", "D"]
 example = {'chosen_action_prob': {'U': [0.9, 0.33, 0.33, 0.34], 'L': [0.8, 0.20, 0.40, 0.40],
               'R': [0.7, 0.50, 0.10, 0.40], 'D': [0.6, 0.80, 0.15, 0.05]},
            'finished_reward': 150,

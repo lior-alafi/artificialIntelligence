@@ -1,3 +1,4 @@
+import datetime
 from collections import OrderedDict
 
 import pressure_plate
@@ -7,7 +8,7 @@ from abc import ABC, abstractmethod
 import bisect
 
 
-id = ["000000000"]
+id = ["032543472"]
 
 
 class Queue(ABC):
@@ -149,7 +150,7 @@ class AStar:
     def __init__(self,problem,f):
         self.fringe = PriorityQueue(min, f)
 
-    def graph_search(self,problem, fringe,initial = None):
+    def graph_search(self,problem, fringe,initial = None,max_worktime=None):
         """Search through the successors of a problem to find a goal.
         The argument fringe should be an empty queue.
         If two paths reach a state, only use the best one. [Fig. 3.18]"""
@@ -159,7 +160,10 @@ class AStar:
             fringe.append((Node(initial)))
         else:
             fringe.append(Node(problem.initial))
+        start = datetime.datetime.now()
         while fringe:
+            if max_worktime and datetime.datetime.now() - start > max_worktime:
+                break
             node = fringe.pop()
             if problem.goal_test(node.state):
                 return node, expanded
@@ -169,7 +173,7 @@ class AStar:
                 expanded += 1
         return None
 
-    def search(self,problem, h=None,initial_state=None):
+    def search(self,problem, h=None,initial_state=None,max_worktime = None):
         """A* search is best-first graph search with f(n) = g(n)+h(n).
         You need to specify theh function when you call astar_search.
         Uses the pathmax trick: f(n) = max(f(n), g(n)+h(n))."""
@@ -177,7 +181,7 @@ class AStar:
 
         def f(n):
 
-            return max(getattr(n, 'f', -np.infty), n.path_cost + h(n))
+            return max(getattr(n, 'f', -np.inf), n.path_cost + h(n))
 
         f = self.memoize(f, 'f')
         return self.graph_search(problem, PriorityQueue(min, f),initial_state)
@@ -274,17 +278,29 @@ class Controller:
         self.initial = (self.init_agent_pos,tuple(self.find_keys_pos(state[0])),self.ndarray2tuple(state[0]))
 
         self.count_stray_path = 0
+        self.ignore_trajectory = False
+        self.trajectory_time = 25
         self.trajectory_dict = OrderedDict()
         self.astar = AStar(self,self.h)
         self.a_star(self.initial)
+        if len(self.trajectory_dict) > self.MAX_STEPS:
+            self.ignore_trajectory = True
 
         self.graph = {}
         self.policies = {}
 
 
     def a_star(self,state,debug=False):
-        astar_sol = self.astar.search(self, self.h,state)
         self.trajectory_dict = OrderedDict()
+
+        if self.ignore_trajectory:
+            return None
+
+        astar_sol = self.astar.search(self, self.h,state,self.trajectory_time)
+        if astar_sol is None:
+            self.ignore_trajectory = True
+
+
         if astar_sol:
             solve = astar_sol[0].path()[::-1]
             for i, pi in enumerate(solve):
@@ -408,14 +424,13 @@ class Controller:
         return 0 <= pos[0] < self.board_shape[0] and 0 <= pos[1] < self.board_shape[1]
 
     def reward_aug(self,current_state,next_state):
-        pos = current_state[0]
         board = current_state[2]
+
         next_pos = next_state[0]
         next_board = next_state[2]
-        penalties_factor = 0
-        plates_factor = 10
-        opened_doors_factor = 30
-        near_goal_factor = 200
+        plates_factor = 5*np.abs(self.R['step'])
+        opened_doors_factor = 7*np.abs(self.R['step'])
+        near_goal_factor = 100*np.abs(self.R['step'])
 
         opened_doors = 0
         pressed_pplates = 0
@@ -429,16 +444,10 @@ class Controller:
                 if board[pos[0]][pos[1]] != next_board[pos[0]][pos[1]]:
                     opened_doors += 1
 
-        penalties = 0
-        if next_pos[0]== pos[0] and next_pos[1]== pos[1]:
-            penalties += 1
-
-        if board[next_pos[0]][next_pos[1]] in {WALL} | PRESSED_PLATES | PRESSURE_PLATES | LOCKED_DOORS:
-            penalties += 5
 
         if board[next_pos[0]][next_pos[1]] == GOAL:
             goal = 1
-        return penalties*penalties_factor + opened_doors_factor*opened_doors+plates_factor*pressed_pplates+near_goal_factor*goal
+        return opened_doors_factor*opened_doors+plates_factor*pressed_pplates+near_goal_factor*goal
 
     def reward_state(self,agent_pos,board,is_s_tag=False):
         if agent_pos in self.goals:
@@ -551,7 +560,7 @@ class Controller:
             action_vec = np.zeros(4)
             agent_pos, keys_poses, board = state
             succ= self.successor(state)
-            m = {}
+            m = {'U':0,'D':0,'R':0,'L':0}
             for i, n_state in enumerate(succ):
                 action = n_state[0]
                 action_2_states[action] = n_state[1]
@@ -564,21 +573,19 @@ class Controller:
                 }
                 if hash(n_state[1]) in graph:
                     data_s_tag = graph[hash(n_state[1])]
-
-                # if hash(n_state[1]) == hash(state):
-                #     data_s_tag['CURRENT_VALUE'] -= 10
+                m[action]= self.reward_aug(state,n_state[1])
                 current_V_s_tag[self.slip_pos2indx[action]] = data_s_tag['CURRENT_VALUE']
 
 
                 # calc for each action
             action_vec[self.slip_pos2indx['U']] = np.sum(self.action_prob['U'] * np.array(
-                [self.reward_state(agent_pos, board, False) + self.gamma * current_V_s_tag]))
+                [self.reward_state(agent_pos, board, False) + m['U']+  self.gamma * current_V_s_tag]))
             action_vec[self.slip_pos2indx['D']] = np.sum(self.action_prob['D'] * np.array(
-                [self.reward_state(agent_pos, board, False) + self.gamma * current_V_s_tag]))
+                [self.reward_state(agent_pos, board, False)+ m['D'] + self.gamma * current_V_s_tag]))
             action_vec[self.slip_pos2indx['R']] = np.sum(self.action_prob['R'] * np.array(
-                [self.reward_state(agent_pos, board, False) + self.gamma * current_V_s_tag]))
+                [self.reward_state(agent_pos, board, False)+ m['R'] + self.gamma * current_V_s_tag]))
             action_vec[self.slip_pos2indx['L']] = np.sum(self.action_prob['L'] * np.array(
-                [self.reward_state(agent_pos, board, False) + self.gamma * current_V_s_tag]))
+                [self.reward_state(agent_pos, board, False)+ m['L'] + self.gamma * current_V_s_tag]))
             # pi*(s)=argmax_a(Pr(s'|s,a)(R(s) + gamma * max_a(V*(s')))
             next_action = self.slip_indx2pos[int(np.argmax(action_vec))]
             next_action = str(next_action)
@@ -589,7 +596,7 @@ class Controller:
 
         return policies
     def value_iteration(self, init_state,horizon):
-        delta = np.infty
+        delta = np.inf
 
         graph = {}
         while delta > self.epsilon:
@@ -628,7 +635,7 @@ class Controller:
                 V_s_prev = data_s["CURRENT_VALUE"]
                 # populate current value for each succsessive state(s')
                 succ = self.successor(state)
-                # unseen_actions = {'U','D','L','R'}
+                m = {}
                 for i, n_state in enumerate(succ):
                         action = n_state[0]
                         # unseen_actions.remove(action)
@@ -639,7 +646,7 @@ class Controller:
                             "STATE": n_state[1],
                             'DEPTH': data_s['DEPTH'] + 1,
                             'PARENT': state,
-                            'CURRENT_VALUE':self.reward_state(agent_new_pos, new_board, True) if traj_data is None else traj_data['CURRENT_VALUE']
+                            'CURRENT_VALUE':(self.reward_state(agent_new_pos, new_board, True)+self.reward_aug(state, n_state[1])) if traj_data is None else traj_data['CURRENT_VALUE']
                         }
                         if hash(n_state[1]) in graph:
                             data_s_tag = graph[hash(n_state[1])]
@@ -652,7 +659,7 @@ class Controller:
 
                         if data_s_tag['DEPTH'] > horizon:
                             continue
-
+                        # m[action] = self.reward_aug(state, n_state[1])
                         queue.append(n_state[1])
                         current_V_s_tag[self.slip_pos2indx[action]] = data_s_tag['CURRENT_VALUE']
                         graph[hash(n_state[1])] = data_s_tag
@@ -767,28 +774,26 @@ class Controller:
     def choose_next_action(self, state):
         """Choose next action for a pressure plate game given the current state of the game.
         """
-        board = state[0]
         agent_pos = state[1]
-        steps = state[2]
-        done = state[3]
-        successful = state[4]
 
         current_state = (agent_pos, tuple(self.find_keys_pos(state[0])), self.ndarray2tuple(state[0]))
         if self.previous_state is None:
             self.previous_state = current_state
 
-
-        traj_data = self.trajectory_dict.get(current_state)
-        if traj_data:
-            self.count_stray_path = 0
-            return traj_data['action']
-
-        if self.count_stray_path == self.horizon -1:
-            self.a_star(current_state)
+        if not self.ignore_trajectory:
             traj_data = self.trajectory_dict.get(current_state)
             if traj_data:
                 self.count_stray_path = 0
                 return traj_data['action']
+
+            if self.count_stray_path == self.horizon -1:
+                self.a_star(current_state)
+                traj_data = self.trajectory_dict.get(current_state)
+                if traj_data:
+                    self.count_stray_path = 0
+                    return traj_data['action']
+
+
 
         s = self.graph.get(hash(current_state))
         if s is None:# or s['DEPTH'] == (self.horizon+ self.MAX_STEPS-self.remaining_steps)//2-1:
@@ -796,6 +801,7 @@ class Controller:
             #     if self.graph[h]['DEPTH'] < (self.horizon+ self.MAX_STEPS-self.remaining_steps)//2-2:
             #         del self.graph[h]
             self.graph = {}
+            self.policies = {}
             self.graph = self.value_iteration(current_state,self.horizon)
             self.policies = self.optimal_policy(self.MAX_STEPS,self.graph )
         self.count_stray_path += 1
